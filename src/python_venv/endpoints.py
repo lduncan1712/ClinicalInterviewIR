@@ -1,5 +1,6 @@
 from python_venv.pipeline import _transcribe
 from fastapi import FastAPI, UploadFile, File, Form, Body
+from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from typing import List, Dict, Any
 import tempfile
@@ -10,6 +11,15 @@ from python_venv.pipeline import _diarize, _embed, _generate, _retrieve, _transc
 
 #The FastAPI App Hosting The Endpoints
 app = FastAPI(title="Core Python Code")
+
+#allow requests between different ports
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/test-status")
 def test_status() -> Dict[str, str]:
