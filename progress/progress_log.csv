@@ -17,3 +17,5 @@ DATE,       WHO, TYPE,     AREA, SUMMARY
 2026-03-07, LD,  STARTED,  Frontend/LiveKit, Started The Live Stream Frontend Method: Added User Device Input UI
 2026-03-11, LD,  CREATED,  Retrieval/Generation, Created The 3 Backend Retrieval/Generation Endpoint Methods
 2026-03-12, LD,  UPDATED,  Transcription/Generation, Added Participant Classification Method To File Upload Flow Transcription.
+2026-03-19, MN,  CREATED,  Frontend, Added UI for retrieval modes
+2026-03-19, MN,  CREATED,  Frontend, Connected Retrieval Endpoints To Frontend
