@@ -21,6 +21,25 @@
         /* Button Format */
         button { padding: 10px 10px; border: none; border-radius: 1px; background: grey; color: black; cursor: pointer; }
         button:hover { background: green; }
+
+        /* Retrieval Form */
+        .retrieval-form {
+            max-width: 800px;
+            margin-top: 10px;
+        }
+        .form-row {
+            margin-bottom: 10px;
+        }
+        /* Retrieval Mode Selection and Textarea */
+        select, textarea {
+            width: 100%;
+            max-width: 700px;
+            padding: 8px;
+            font-size: 14px;
+        }
+        textarea {
+            resize: vertical;
+        }
     </style>
 </head>
 <body>
@@ -71,7 +90,58 @@
 
             <!--LLM Engine -->
              <div id="retrievalModules" class="panel">
-                <h3>Unified Search Window Or Split Into 3+???</h3>
+                <h3>LLM Retrieval</h3>
+                <p>Select a retrieval mode, choose a speaker scope, and enter a question if needed.</p>
+
+                <div class="retrieval-form">
+                    <!-- retrieval mode -->
+                    <div class="form-row">
+                        <label for="retrievalMode"><strong>Retrieval Mode</strong></label><br>
+                        <select id="retrievalMode" onchange="controller.updateRetrievalUI()">
+                            <option value="summary">Clinical Interview Summarization</option>
+                            <option value="analysis">Automated Interview Analyzer</option>
+                            <option value="qa">Symptom-Based Question Answering</option>
+                        </select>
+                    </div>
+
+                    <br>
+                    <!-- speaker filter -->
+                    <div class="form-row">
+                        <label for="speakerFilter"><strong>Speaker Filter</strong></label><br>
+                        <select id="speakerFilter">
+                            <option value="all">All Speakers</option>
+                            <option value="PATIENT">Patient Only</option>
+                            <option value="CLINICIAN">Clinician Only</option>
+                        </select>
+                    </div>
+
+                    <br>
+                    <!-- prompt -->
+                    <div class="form-row" id="queryRow">
+                        <label for="retrievalQuery"><strong>Question / Prompt</strong></label><br>
+                        <textarea
+                            id="retrievalQuery"
+                            rows="4"
+                            cols="70"
+                        ></textarea>
+                    </div>
+
+                    <br>
+                    <!-- buttons -->
+                    <div class="form-row">
+                        <button onclick="controller.prepareRetrievalRequest()">Run Retrieval</button>
+                        <button onclick="controller.clearRetrievalOutput()">Clear Output</button>
+                    </div>
+
+                    <br>
+                    <!-- output -->
+                    <div class="form-row">
+                        <h4>Output</h4>
+                        <div id="retrievalOutput" style="border:1px solid #999; padding:12px; min-height:120px; background:#f7f7f7;">
+                            Retrieval output will appear here.
+                        </div>
+                    </div>
+                </div>
              </div>
 
             <!-- Evaluation -->

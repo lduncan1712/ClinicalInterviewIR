@@ -4,6 +4,11 @@ class Controller {
         this.fileInput = document.getElementById('fileInput');
         this.patientStream = null;
         this.clinicianStream = null;
+        this.retrievalMode = document.getElementById('retrievalMode');
+        this.speakerFilter = document.getElementById('speakerFilter');
+        this.retrievalQuery = document.getElementById('retrievalQuery');
+        this.queryRow = document.getElementById('queryRow');
+        this.retrievalOutput = document.getElementById('retrievalOutput');
     }
 
     showPanel(id) {
@@ -96,16 +101,110 @@ class Controller {
         }
     }
 
-    async retrievalModule_1(){
+    //update retrievalQuery textarea placeholder
+    updateRetrievalUI() {
+        const mode = this.retrievalMode.value;
 
+        if (mode === 'qa') {
+            this.queryRow.style.display = 'block';
+            this.retrievalQuery.placeholder = 'Enter a question: e.g. What symptoms did the patient report?';
+        } else if (mode === 'summary') {
+            this.queryRow.style.display = 'block';
+            this.retrievalQuery.placeholder = 'Prompt not applicable for summary mode.';
+        } else if (mode === 'analysis') {
+            this.queryRow.style.display = 'block';
+            this.retrievalQuery.placeholder = 'Prompt not applicable for analysis mode.';
+        }
     }
 
-    async retrievalModule_2(){
-
+    //get endpoints for each mode
+    getRetrievalEndpoint(mode) {
+        if (mode === 'summary') return 'http://localhost:8000/generate-summary';
+        if (mode === 'analysis') return 'http://localhost:8000/generate-analysis';
+        if (mode === 'qa') return 'http://localhost:8000/generate-answer';
+        return null;
     }
 
-    async retrievalModule_3(){
+    async prepareRetrievalRequest() {
+        const mode = this.retrievalMode.value;
+        const speaker = this.speakerFilter.value;
+        const query = this.retrievalQuery.value.trim();
 
+        let selectedModeLabel = '';
+        if (mode === 'summary') selectedModeLabel = 'Clinical Interview Summarization';
+        if (mode === 'analysis') selectedModeLabel = 'Automated Interview Analyzer';
+        if (mode === 'qa') selectedModeLabel = 'Symptom-Based Question Answering';
+
+        let endpoint = this.getRetrievalEndpoint(mode);
+
+        //question/prompt is needed for qa mode
+        if (mode === 'qa' && !query) {
+            this.retrievalOutput.innerHTML = `
+                <strong>Selected Mode:</strong> ${selectedModeLabel}<br>
+                <strong>Speaker Filter:</strong> ${speaker}<br>
+                <strong>Error:</strong> Please enter a question for Question Answering mode.
+            `;
+            return;
+        }
+
+        //send prompt to backend for qa
+        if (mode === 'qa') {
+            endpoint += `?query=${encodeURIComponent(query)}`;
+        }
+
+        //format output
+        this.retrievalOutput.innerHTML = `
+            <strong>Selected Mode:</strong> ${selectedModeLabel}<br>
+            <strong>Speaker Filter:</strong> ${speaker}<br>
+            <strong>Question / Prompt:</strong> ${query ? query : 'None entered'}<br><br>
+            <em>Running retrieval...</em>
+        `;
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST'
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            let formattedResult = '';
+
+            if (typeof data === 'string') {
+                formattedResult = data;
+            } else if (data.result) {
+                formattedResult = data.result;
+            } else if (data.response) {
+                formattedResult = data.response;
+            } else if (data.output) {
+                formattedResult = data.output;
+            } else {
+                formattedResult = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            }
+        
+            this.retrievalOutput.innerHTML = `
+                <strong>Selected Mode:</strong> ${selectedModeLabel}<br>
+                <strong>Speaker Filter:</strong> ${speaker}<br>
+                <strong>Question / Prompt:</strong> ${query ? query : 'None entered'}<br><br>
+                <strong>Backend Output:</strong><br>
+                <div style="margin-top:8px; white-space:pre-wrap;">${formattedResult.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>
+            `;
+        } catch (error) {
+            this.retrievalOutput.innerHTML = `
+                <strong>Selected Mode:</strong> ${selectedModeLabel}<br>
+                <strong>Speaker Filter:</strong> ${speaker}<br>
+                <strong>Question / Prompt:</strong> ${query ? query : 'None entered'}<br><br>
+                <strong>Error:</strong> ${error.message}
+            `;
+        }
+    }
+
+
+    clearRetrievalOutput() {
+        this.retrievalOutput.innerHTML = 'Retrieval output will appear here.';
+        this.retrievalQuery.value = '';
     }
 
 
@@ -116,4 +215,5 @@ class Controller {
 
 document.addEventListener('DOMContentLoaded', () => {
     window.controller = new Controller();
+    window.controller.updateRetrievalUI();
 });
