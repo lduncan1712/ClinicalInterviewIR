@@ -110,7 +110,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:8000/index-text",
+        "url": "http://host.docker.internal:8000/embed-segments",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [

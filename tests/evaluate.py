@@ -6,7 +6,7 @@ import jiwer            #jlibrary for calculating WER
 
 #ensure we can import from the src folder
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from src.python_venv._transcribe import get_transcription
+from python_venv.pipeline._transcribe import get_transcription
 
 def parse_textgrid_transcript(file_path):
     """

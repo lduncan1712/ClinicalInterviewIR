@@ -67,12 +67,17 @@ class Controller {
     async uploadAudioFile() {
         const file = this.fileInput.files[0];
         if (!file) {
-            alert('No Audio File Selected')
-            return
+            alert('No Audio File Selected');
+            return;
+        } else if (this.isProcessing){
+            alert('Upload Already In Process');
+            return;
         } else {
             //Caching Audio File
             const formData = new FormData();
             formData.append('audio', file);
+
+            this.isProcessing = true;
 
             //Initiating N8N Flow
             try {
@@ -85,7 +90,9 @@ class Controller {
                 alert('N8N Output: ' + JSON.stringify(data))
             } catch(error) {
                 alert('Error Uploading File: ' + error);
-            }   
+            } finally {
+                this.isProcessing = false
+            }
         }
     }
 
