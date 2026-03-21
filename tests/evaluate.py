@@ -5,13 +5,8 @@ import re               #re for regular expressions
 import jiwer            #jlibrary for calculating WER
 
 #ensure we can import from the src folder
-<<<<<<< Updated upstream
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from src.python_venv._transcribe import get_transcription
-=======
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 from python_venv.pipeline._transcribe import get_transcription
->>>>>>> Stashed changes
 
 
 
