@@ -1,5 +1,6 @@
 /src/python_venv/script_env/
 /src/python_venv/__pycache__/
+/src/python_venv/pipeline/__pycache__/
 /tokens/*
 !/tokens/.gitkeep
 !/tests/.gitkeep

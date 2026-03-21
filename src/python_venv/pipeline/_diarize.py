@@ -1,14 +1,10 @@
 from pathlib import Path
 import torch
-import os
-from pyannote.audio import Pipeline
 from pyannote.core import Annotation
 from typing import Dict, Any
 import soundfile as sf
 
-
-huggingface_pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-community-1", token=os.getenv("HUGGINGFACE_TOKEN"))
-
+from python_venv.models import huggingface_pipeline
 
 def get_diarization(audio_path: str) -> Annotation:
     """

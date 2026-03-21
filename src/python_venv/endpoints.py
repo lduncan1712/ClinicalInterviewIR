@@ -1,89 +1,120 @@
-from python_venv import _diarize, _embed, _generate, _retrieve, _transcribe
+from python_venv.pipeline import _transcribe
 from fastapi import FastAPI, UploadFile, File, Form, Body
+from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from typing import List, Dict, Any
 import tempfile
 import json
 import os
 
-#FastAPI App Initialization
+from python_venv.pipeline import _diarize, _embed, _generate, _retrieve, _transcribe
+
+#The FastAPI App Hosting The Endpoints
 app = FastAPI(title="Core Python Code")
 
-#NOTES:
-#- Files Named "_{name}" As Considered Internal, As Such Error Handling Needs To Be Done In This Outer Layer
-
-
-
-
-#TEST ENDPOINTS: (NOT USED IN PIPELINE)
-
-@app.get("/test-generation") 
-def test_generation() -> List[Dict[str, Any]]:
-    try:
-        return [{"response": _generate.get_generation(query="Hi Hows Your Day Going", system_prompt="Please Respond To The User Kindly")}]
-    except Exception as e:
-        return [{"status": "error", "text": f"Error In Generation Retrieval: {str(e)}"}]
-
-@app.get("/test-retrieval")
-def test_retrieval() -> List[Dict[str, Any]]:
-    try:
-        query_vector = _embed.get_embeddings(["Russian, Demography"])[0]
-        return [{"response": _retrieve.get_retrieval(query_vector=query_vector)}]
-    except Exception as e:
-        return [{"status": "error", "text": f"Error In SubSet Retieval: {str(e)}"}]
+#allow requests between different ports
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/test-status")
 def test_status() -> Dict[str, str]:
+    """
+    A test endpoints confirming FastAPI status, 
+    
+    NOTE: This should also implicitly confirm models.py has been setup correctly 
+    """
     return {"status": "ok", "message": "FastAPI Endpoint Reached"} 
 
 
-
-#LIVE ENDPOINTS IN PIPELINE:
 @app.post("/transcribe-original-audio")
 def transcribe_original_audio(audio_file: UploadFile = File(...)) -> List[Dict[str, Any]]:
     """
-    An endpoint which transcribes a supplied original audio file. Intended for file upload portion of project
+    An endpoint that transcribes an audio file into a participant labeled and diarized list of transcribed segments 
     
-    Arguments:
+    ARGUMENTS:
         audio_file: The audio file to transcribe
 
-    Returns: A list of dictionaries representing conversational segments
+    RETURNS: A list of dictionaries representing conversational segments
 
-    Notes: To avoid extra N8N nodes and needing to pass data more then necessary, the diarization method is called within this endpoint
+    NOTE:To avoid extra N8N nodes or unnecessary data transfer, this method contains the diarization and participant classification
+         instead of making them seperate nodes, since they will only be used once (livekit handles these steps for live audio) 
+
+         Also since both diarization and transcription are capable of generating segment timestamps, (diarization through diarized segments, 
+         and transcription using pauses in speech), to avoid any differences or inconsistencies, for this method ive elected to treat the
+         diarized sections as the segments/segment timestamps, and generate the transcription from within these timestamped segments.
     """
-    try:    
+    try:  
+        segments = [] 
+        system_prompt = (Path(__file__).resolve().parents[2] / "prompts" / "CLASSIFIER.txt").read_text()
+
+        #Save File Locally
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
             tmp.write(audio_file.file.read())
             audio_path = str(Path(tmp.name))
 
+        #Load File
+        from pydub import AudioSegment
+        audio = AudioSegment.from_file(audio_path)
+
+        #Diarize
         diarization = _diarize.get_diarization(audio_path=audio_path)
 
-        segments = _transcribe.transcribe_original_audio(audio_path=audio_path, diarization=diarization)
+        #Transcribe Segments
+        for segment, speaker in diarization.speaker_diarization:
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_segment:
+                audio[int(segment.start*1000):int(segment.end*1000)].export(tmp_segment.name, format="wav")
+                segment_path = str(Path(tmp_segment.name))
 
+            transcription = _transcribe.get_transcription(audio_path=segment_path)
+
+            segments.append({
+                "speaker": speaker,
+                "start": segment.start,
+                "end": segment.end,
+                "text": transcription.text
+            })
+
+            os.remove(segment_path)
         os.remove(audio_path)
 
-        segments = _generate.get_generated_roles(segments=segments)
+        #Classify Participants Using Context
+        query = "\n".join(f"{segment['speaker']}: {segment['text']}" for segment in segments[:10])
+        clinician = _generate.get_generation(query=query, system_prompt=system_prompt)
+        for segment in segments:
+            if segment['speaker'] == clinician:
+                segment['speaker'] = "CLINICIAN" 
+            else:
+                segment['speaker'] = "PATIENT"
 
         return [{"transcription": segments}]
-        
     except Exception as e:
         return [{"status": "error", "text": f"Error In Transcribe Original Audio: {str(e)}"}]
 
+#TODO
 @app.post("/transcribe-seperated-audio")
 def transcribe_seperated_audio():
-    #TODO: When Outputs From Livekit Are Known
+    #NOTE: This is a method stem for handling livekit audio chunks that are already seperated by participants
     pass
 
-#NOTE: This is actually embedding for now all indexing is done by supabase automatically
-@app.post("/index-text")
-def index_text(metadata: str) -> List[Dict[str, Any]]:
+@app.post("/embed-segments")
+def embed_segments(metadata: str) -> List[Dict[str, Any]]:
     """
-    An endpoint which indexes supplied transcription, and handles embedding
+    An endpoint which embeds segments
 
-    Arguments:
+    ARGUMENTS:
         metadata: string json transcription data
 
-    Returns: JSON transcription data with embeddings, etc added
+    RETURNS: JSON transcription data with embeddings, etc added
+    
+    NOTE: For now this method includes no indexing, since supabase can handle
+          assigning an id to each segment, however if further ids are required
+          at a later point IE: if we want to handle multiple conversations
+          the assigning of those IDs should be done within here.
     """
     try: 
         audio_transcriptions = json.loads(metadata)["transcription"]
@@ -97,15 +128,24 @@ def index_text(metadata: str) -> List[Dict[str, Any]]:
     except Exception as e:
         return [{"status": "error", "text": f"Error In Index Audio: {str(e)}"}]
 
+def get_grounded_response(system_prompt_name: str, query:str = None, speaker:str = None, n:int = 50) -> str:
+    """
+    A support method for retrieval endpoints that generates a response to a prompt using grounded segments
 
+    ARGUMENTS:
+        system_prompt_name: The file name of the system prompt within the prompts folder
+        query: An optional query prepending the data
+        speaker: An optional speaker that when supplied, only incorporates segments from that speaker
+        n: The number of most relevant segments to supply for response insight 
 
+    RETURNS: A generated string response.
 
-
-def get_generated_responses(system_prompt_name: str, query:str = None, speaker:str = None, segment_count:int = 50):
-    
+    NOTE: To ensure only medically related segments are analyszed, retrieved segments are first filtered
+          to exclude the least medically related.
+    """
     query_vector = _embed.get_embeddings(["Medical"])[0]
-    
-    segments = _retrieve.get_retrieval(query_vector=query_vector, speaker=speaker, segment_count=segment_count)
+
+    segments = _retrieve.get_retrieval(query_vector=query_vector, speaker=speaker, n=n)
 
     segments_str = json.dumps(segments)
 
@@ -113,25 +153,39 @@ def get_generated_responses(system_prompt_name: str, query:str = None, speaker:s
 
     return _generate.get_generation(query=f"{query}: {segments_str}", system_prompt=system_prompt)
 
-
 @app.post("/generate-summary")
-def generate_summary(speaker:str = None, segment_count:int = 20) -> str:
+def generate_summary(speaker:str = None, n:int = 20) -> str:
+    """
+    An endpoint which returns a grounded summary
+
+    Please see the wrapped method for details
+    """
     try:
-        return get_generated_responses(system_prompt_name="SUMMARIZATION.txt", query=None, speaker=speaker, segment_count=segment_count)
+        return get_grounded_response(system_prompt_name="SUMMARIZATION.txt", query=None, speaker=speaker, n=n)
     except Exception as e:
             return [{"status": "error", "text": f"Error In Generate Summary: {str(e)}"}]
 
 @app.post("/generate-analysis")
-def generate_analysis(speaker:str = None, segment_count:int = 20) -> str:
+def generate_analysis(speaker:str = None, n:int = 20) -> str:
+    """
+    An endpoint which returns a grounded analysis
+
+    Please see the wrapped method for details
+    """
     try:
-        return get_generated_responses(system_prompt_name="ANALYZER.txt", query=None, speaker=speaker, segment_count=segment_count)
+        return get_grounded_response(system_prompt_name="ANALYZER.txt", query=None, speaker=speaker, n=n)
     except Exception as e:
             return [{"status": "error", "text": f"Error In Generate Analysis: {str(e)}"}]
 
 @app.post("/generate-answer")
-def generate_answer(query:str, speaker:str = None, segment_count:int = 20) -> str:
+def generate_answer(query:str, speaker:str = None, n:int = 20) -> str:
+    """
+    An endpoint which returns a grounded answer to a user posed question
+
+    Please see the wrapped method for details
+    """
     try:
-        return get_generated_responses(system_prompt_name="QUESTIONS.txt", query=query, speaker=speaker, segment_count=segment_count)
+        return get_grounded_response(system_prompt_name="QUESTIONS.txt", query=query, speaker=speaker, n=n)
     except Exception as e:
             return [{"status": "error", "text": f"Error In Generate Answer: {str(e)}"}]
 
