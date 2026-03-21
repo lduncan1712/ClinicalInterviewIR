@@ -11,10 +11,22 @@ class Controller {
         this.retrievalOutput = document.getElementById('retrievalOutput');
     }
 
-    showPanel(id) {
-        this.panels.forEach(p => p.classList.remove('active'));
+    showPanel(id, navEl) {
+        this.panels.forEach(p => {
+            p.classList.remove('active');
+            p.setAttribute('aria-hidden', 'true');
+        });
         const panel = document.getElementById(id);
-        if (panel) panel.classList.add('active');
+        if (panel) {
+            panel.classList.add('active');
+            panel.setAttribute('aria-hidden', 'false');
+        }
+        document.querySelectorAll('.sidebar .sidebar-item').forEach(el => {
+            const on = el === navEl;
+            el.classList.toggle('is-active', on);
+            if (on) el.setAttribute('aria-current', 'page');
+            else el.removeAttribute('aria-current');
+        });
     }
 
     async assignAudioDevice(role){
@@ -216,4 +228,8 @@ class Controller {
 document.addEventListener('DOMContentLoaded', () => {
     window.controller = new Controller();
     window.controller.updateRetrievalUI();
+    const firstNav = document.querySelector('.sidebar .sidebar-item.is-active');
+    if (firstNav && firstNav.dataset.panel) {
+        window.controller.showPanel(firstNav.dataset.panel, firstNav);
+    }
 });

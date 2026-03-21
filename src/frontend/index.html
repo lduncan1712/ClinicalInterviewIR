@@ -2,25 +2,156 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>IR Front End</title>
     <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            font-size: 15px;
+            line-height: 1.5;
+            color: #1a1a1a;
+            background: #fff;
+        }
+
         /* Main Container */
-        .container {display: flex; height: 100vh; color:blue}
+        .container { display: flex; height: 100vh; }
 
         /* Function Selection Sidebar */
-        .sidebar {width: 200px; padding: 10px; background: teal; color:black}
-        .sidebar ul {list-style-type: none; padding: 10px;}
-        .sidebar li {padding: 10px; background: skyblue; cursor:pointer;}
-        .sidebar li:hover {background-color: grey}
+        .sidebar {
+            width: 220px;
+            flex-shrink: 0;
+            padding: 16px 12px;
+            background: teal;
+            border-right: 1px solid #006d6d;
+            color: black;
+        }
+        .sidebar h2 {
+            margin: 0 0 12px 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: black;
+        }
+        .sidebar ul { list-style-type: none; padding: 0; margin: 0; }
+        .sidebar .sidebar-item {
+            padding: 10px 12px;
+            margin-bottom: 4px;
+            border-radius: 8px;
+            cursor: pointer;
+            color: black;
+            background: skyblue;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+        .sidebar .sidebar-item:hover { background-color: grey; color: black; }
+        .sidebar .sidebar-item.is-active {
+            background-color: dodgerblue;
+            color: black;
+            font-weight: 600;
+        }
 
         /* Function Content Area */
-        .content {flex: 1; padding:10px; color:black}
+        .content { flex: 1; min-width: 0; padding: 20px 24px; color: black; overflow: auto; }
         .panel{display:none;}
         .panel.active{display:block;}
+        .content .panel { padding-bottom: 28px; }
+        .content .panel > h3 {
+            margin: 0 0 10px;
+            font-size: 1.35rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        .content .panel > h4 {
+            margin: 0 0 18px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            line-height: 1.45;
+            max-width: 55rem;
+            color: #222;
+        }
+        .content .panel > p {
+            margin: 0 0 16px;
+            max-width: 55rem;
+            color: #333;
+        }
 
         /* Button Format */
-        button { padding: 10px 10px; border: none; border-radius: 1px; background: grey; color: black; cursor: pointer; }
+        button {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            background: grey;
+            color: black;
+            cursor: pointer;
+            font: inherit;
+            line-height: 1.25;
+            transition: background-color 0.15s ease, filter 0.15s ease;
+        }
         button:hover { background: green; }
+        button:focus-visible {
+            outline: 2px solid dodgerblue;
+            outline-offset: 2px;
+        }
+        button:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-top: 12px;
+        }
+        #fileAudio .button-group { margin-top: 0; }
+        #fileAudio input[type="file"] {
+            font: inherit;
+            font-size: 14px;
+            max-width: min(100%, 28rem);
+        }
+        #fileAudio input[type="file"]::file-selector-button {
+            padding: 8px 16px;
+            margin-right: 12px;
+            border: none;
+            border-radius: 8px;
+            background: grey;
+            color: black;
+            font: inherit;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+        }
+        #fileAudio input[type="file"]::file-selector-button:hover {
+            background: green;
+        }
+        #fileAudio input[type="file"]:focus-visible {
+            outline: 2px solid dodgerblue;
+            outline-offset: 2px;
+        }
+        .audio-status { margin: 14px 0 4px; }
+        .device-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .device-row label {
+            flex: 0 0 180px;
+            min-width: 140px;
+        }
+        .device-row .device-name {
+            flex: 0 0 250px;
+            min-width: 180px;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        button.assign-btn.assigned {
+            box-shadow: inset 0 0 0 2px green;
+        }
 
         /* Retrieval Form */
         .retrieval-form {
@@ -30,15 +161,102 @@
         .form-row {
             margin-bottom: 10px;
         }
+        .retrieval-form .form-row {
+            margin-bottom: 18px;
+        }
+        .retrieval-form .form-row label {
+            display: block;
+            margin-bottom: 6px;
+        }
+        .retrieval-form .form-row.button-group {
+            margin-bottom: 18px;
+        }
+        .retrieval-form h4 {
+            margin: 8px 0 8px;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+        .retrieval-output {
+            border: 1px solid #999;
+            border-radius: 8px;
+            padding: 12px 14px;
+            min-height: 120px;
+            background: #f7f7f7;
+            max-width: 700px;
+            overflow-wrap: break-word;
+        }
         /* Retrieval Mode Selection and Textarea */
         select, textarea {
             width: 100%;
             max-width: 700px;
-            padding: 8px;
+            padding: 8px 10px;
             font-size: 14px;
+            border: 1px solid #999;
+            border-radius: 8px;
+            background: #fff;
+        }
+        select:focus-visible, textarea:focus-visible {
+            outline: 2px solid dodgerblue;
+            outline-offset: 1px;
         }
         textarea {
             resize: vertical;
+        }
+        .content .panel.evaluation-panel > h3 {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 600;
+            line-height: 1.5;
+            max-width: 55rem;
+            color: #333;
+            letter-spacing: 0;
+        }
+        @media (max-width: 640px) {
+            .container {
+                flex-direction: column;
+                height: auto;
+                min-height: 100vh;
+                min-height: 100dvh;
+            }
+            .sidebar {
+                width: 100%;
+                flex-shrink: 0;
+                border-right: none;
+                border-bottom: 1px solid #006d6d;
+                padding: 12px 10px;
+            }
+            .sidebar h2 {
+                margin-bottom: 8px;
+            }
+            .sidebar ul {
+                display: flex;
+                flex-direction: row;
+                flex-wrap: nowrap;
+                gap: 8px;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                padding-bottom: 6px;
+                margin: 0 -4px;
+                padding-left: 4px;
+                padding-right: 4px;
+            }
+            .sidebar .sidebar-item {
+                margin-bottom: 0;
+                flex: 0 0 auto;
+                white-space: nowrap;
+            }
+            .content {
+                flex: 1;
+                padding: 16px;
+                overflow-x: hidden;
+            }
+            .device-row label {
+                flex: 1 1 100%;
+            }
+            .device-row .device-name {
+                flex: 1 1 100%;
+                min-width: 0;
+            }
         }
     </style>
 </head>
@@ -47,56 +265,60 @@
     <div class="container">
 
         <!-- Function Selection Sidebar -->
-        <div class="sidebar">
+        <nav class="sidebar" aria-label="Functions">
             <h2>Functions</h2>
             <ul>
-                <li onclick="controller.showPanel('liveAudio')">Live Audio</li>
-                <li onclick="controller.showPanel('fileAudio')">Audio Upload (Works)</li>
-                <li onclick="controller.showPanel('retrievalModules')">LLM Retrieval</li>
-                <li onclick="controller.showPanel('evaluationModules')">LLM Evaluation</li>
+                <li class="sidebar-item is-active" data-panel="liveAudio" aria-current="page" onclick="controller.showPanel('liveAudio', this)">Live Audio</li>
+                <li class="sidebar-item" data-panel="fileAudio" onclick="controller.showPanel('fileAudio', this)">Audio Upload (Works)</li>
+                <li class="sidebar-item" data-panel="retrievalModules" onclick="controller.showPanel('retrievalModules', this)">LLM Retrieval</li>
+                <li class="sidebar-item" data-panel="evaluationModules" onclick="controller.showPanel('evaluationModules', this)">LLM Evaluation</li>
             </ul>
-        </div>
+        </nav>
 
         <!-- Function Content Area --> 
-        <div class="content">
+        <main class="content" id="main-content">
 
             <!-- Live Video -->
-            <div id="liveAudio" class="panel">
+            <div id="liveAudio" class="panel active" aria-hidden="false">
                 <h3>Live Video</h3>
                 <h4>To Utilize This Functionality Please Connect 2+ Audio Inputs, Please Ensure You Allow Audio Access To This Website</h4>
                 <div class="device-row">
-                    <label style="display: inline-block; width: 180px;">Patient Microphone</label>&nbsp;&nbsp;
-                    <span class="device-name", id="patientAudio" style="display: inline-block; width: 250px;">N/A</span>&nbsp;&nbsp;
-                    <button class="assign-btn", onclick="controller.assignAudioDevice('patient')">Select</button>"
+                    <label>Patient Microphone</label>
+                    <span class="device-name" id="patientAudio">N/A</span>
+                    <button type="button" class="assign-btn" onclick="controller.assignAudioDevice('patient')">Select</button>
                 </div>
                 <div class="device-row">
-                    <label style="display: inline-block; width: 180px;">Clinician Microphone</label>&nbsp;&nbsp;
-                    <span class="device-name", id="clinicianAudio" style="display: inline-block; width: 250px;">N/A</span>&nbsp;&nbsp;
-                    <button class="assign-btn", onclick="controller.assignAudioDevice('clinician')">Select</button>"
+                    <label>Clinician Microphone</label>
+                    <span class="device-name" id="clinicianAudio">N/A</span>
+                    <button type="button" class="assign-btn" onclick="controller.assignAudioDevice('clinician')">Select</button>
                 </div>
                 <div class="audio-status">
                     Live Streaming Status: <span id="streamStatus">Not Running</span>
                 </div>
-                <button onclick="controller.startLiveAudio()">Start Live Audio</button>
-                <button onclick="controller.stopLiveAudio()">Stop Live Audio</button>
+                <div class="button-group">
+                    <button type="button" onclick="controller.startLiveAudio()">Start Live Audio</button>
+                    <button type="button" onclick="controller.stopLiveAudio()">Stop Live Audio</button>
+                </div>
             </div>
 
             <!-- File Video -->
-             <div id="fileAudio" class="panel">
+             <div id="fileAudio" class="panel" aria-hidden="true">
                 <h3>File Video</h3>
-                <input type="file" id="fileInput", accept="audio/">
-                <button onclick="controller.uploadAudioFile()">Upload Video File</button>      
+                <div class="button-group">
+                    <input type="file" id="fileInput" accept="audio/*">
+                    <button type="button" onclick="controller.uploadAudioFile()">Upload Video File</button>
+                </div>
              </div>
 
             <!--LLM Engine -->
-             <div id="retrievalModules" class="panel">
+             <div id="retrievalModules" class="panel" aria-hidden="true">
                 <h3>LLM Retrieval</h3>
                 <p>Select a retrieval mode, choose a speaker scope, and enter a question if needed.</p>
 
                 <div class="retrieval-form">
                     <!-- retrieval mode -->
                     <div class="form-row">
-                        <label for="retrievalMode"><strong>Retrieval Mode</strong></label><br>
+                        <label for="retrievalMode"><strong>Retrieval Mode</strong></label>
                         <select id="retrievalMode" onchange="controller.updateRetrievalUI()">
                             <option value="summary">Clinical Interview Summarization</option>
                             <option value="analysis">Automated Interview Analyzer</option>
@@ -104,10 +326,9 @@
                         </select>
                     </div>
 
-                    <br>
                     <!-- speaker filter -->
                     <div class="form-row">
-                        <label for="speakerFilter"><strong>Speaker Filter</strong></label><br>
+                        <label for="speakerFilter"><strong>Speaker Filter</strong></label>
                         <select id="speakerFilter">
                             <option value="all">All Speakers</option>
                             <option value="PATIENT">Patient Only</option>
@@ -115,10 +336,9 @@
                         </select>
                     </div>
 
-                    <br>
                     <!-- prompt -->
                     <div class="form-row" id="queryRow">
-                        <label for="retrievalQuery"><strong>Question / Prompt</strong></label><br>
+                        <label for="retrievalQuery"><strong>Question / Prompt</strong></label>
                         <textarea
                             id="retrievalQuery"
                             rows="4"
@@ -126,18 +346,16 @@
                         ></textarea>
                     </div>
 
-                    <br>
                     <!-- buttons -->
-                    <div class="form-row">
-                        <button onclick="controller.prepareRetrievalRequest()">Run Retrieval</button>
-                        <button onclick="controller.clearRetrievalOutput()">Clear Output</button>
+                    <div class="form-row button-group">
+                        <button type="button" onclick="controller.prepareRetrievalRequest()">Run Retrieval</button>
+                        <button type="button" onclick="controller.clearRetrievalOutput()">Clear Output</button>
                     </div>
 
-                    <br>
                     <!-- output -->
                     <div class="form-row">
                         <h4>Output</h4>
-                        <div id="retrievalOutput" style="border:1px solid #999; padding:12px; min-height:120px; background:#f7f7f7;">
+                        <div id="retrievalOutput" class="retrieval-output">
                             Retrieval output will appear here.
                         </div>
                     </div>
@@ -145,12 +363,12 @@
              </div>
 
             <!-- Evaluation -->
-             <div id="evaluationModules", class="panel">
+             <div id="evaluationModules" class="panel evaluation-panel" aria-hidden="true">
                 <h3>Should This Have A Seperate Tab IE: For Seperate Tests, Or Should This Be Part Of Retrieval????</h3>
              </div>
 
 
-        </div>
+        </main>
     </div>
 <script src="app.js"></script>
 </body>
