@@ -42,5 +42,5 @@ def upload_audio_to_database(audio_path):
 
 if __name__ == "__main__":
     #name of file to upload
-    test_file = "tests/test_audio/day1_consultation01_doctor.wav"
+    test_file = "tests/test_audio/day1_consultation01_mixed.wav"
     upload_audio_to_database(test_file)
