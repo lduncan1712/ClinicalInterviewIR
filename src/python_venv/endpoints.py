@@ -74,8 +74,8 @@ def transcribe_original_audio(audio_file: UploadFile = File(...)) -> List[Dict[s
 
             segments.append({
                 "speaker": speaker,
-                "start": segment.start,
-                "end": segment.end,
+                "start": round(segment.start, 1),
+                "end": round(segment.end, 1),
                 "text": transcription.text
             })
 
