@@ -5,8 +5,10 @@ import re               #re for regular expressions
 import jiwer            #jlibrary for calculating WER
 
 #ensure we can import from the src folder
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 from python_venv.pipeline._transcribe import get_transcription
+
+
 
 def parse_textgrid_transcript(file_path):
     """
