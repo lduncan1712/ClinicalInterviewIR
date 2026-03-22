@@ -1,5 +1,10 @@
 /src/python_venv/script_env/
-__pycache__/
-*/__pycache__/
+/src/python_venv/__pycache__/
 /tokens/*
+!/tokens/.gitkeep
+!/tests/.gitkeep
 /.env
+/*.env
+/.env.*
+src/docker/.env
+.env

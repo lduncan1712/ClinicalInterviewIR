@@ -1,14 +1,43 @@
-from python_venv.pipeline import _transcribe
-from fastapi import FastAPI, UploadFile, File, Form, Body
+from fastapi import FastAPI, UploadFile, File, Form, Body, WebSocket, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from typing import List, Dict, Any
+from dotenv import load_dotenv
+import time
 import tempfile
 import json
 import os
+import asyncio
+import wave
+from collections import defaultdict
+
+ENV_PATH = Path(__file__).resolve().parents[1] / "docker" / ".env"
+load_dotenv(dotenv_path=ENV_PATH)
+
+import httpx
+from livekit import api
+from livekit.api import LiveKitAPI
+from pydantic import BaseModel
 
 from python_venv.pipeline import _diarize, _embed, _generate, _retrieve, _transcribe
 
+PCM_SAMPLE_RATE = 48000
+PCM_SAMPLE_WIDTH = 2
+PCM_CHANNELS = 1
+CHUNK_SECONDS = 10
+
+BYTES_PER_SECOND = PCM_SAMPLE_RATE * PCM_SAMPLE_WIDTH * PCM_CHANNELS
+CHUNK_SIZE_BYTES = BYTES_PER_SECOND * CHUNK_SECONDS
+
+speaker_buffers = defaultdict(bytearray)
+speaker_chunk_index = defaultdict(int)
+speaker_chunk_start = defaultdict(float)
+speaker_locks = defaultdict(asyncio.Lock)
+class LiveKitTokenRequest(BaseModel):
+    room_name: str
+    participant_identity: str
+    participant_name: str | None = None
+    
 #The FastAPI App Hosting The Endpoints
 app = FastAPI(title="Core Python Code")
 
@@ -21,6 +50,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def reset_speaker_state(speaker: str):
+    speaker_buffers[speaker] = bytearray()
+    speaker_chunk_index[speaker] = 0
+    speaker_chunk_start[speaker] = 0.0
+    
+    
 @app.get("/test-status")
 def test_status() -> Dict[str, str]:
     """
@@ -95,11 +130,172 @@ def transcribe_original_audio(audio_file: UploadFile = File(...)) -> List[Dict[s
     except Exception as e:
         return [{"status": "error", "text": f"Error In Transcribe Original Audio: {str(e)}"}]
 
+@app.post("/livekit-token")
+def create_livekit_token(payload: LiveKitTokenRequest) -> dict:
+    try:
+        api_key = os.getenv("LIVEKIT_API_KEY")
+        api_secret = os.getenv("LIVEKIT_API_SECRET")
+
+        print("LIVEKIT_API_KEY:", api_key)
+        print("LIVEKIT_API_SECRET exists:", api_secret is not None)
+
+        if not api_key or not api_secret:
+            raise ValueError("api_key and api_secret must be set")
+        
+        token= (
+            api.AccessToken(api_key=api_key, api_secret=api_secret)
+            .with_identity(payload.participant_identity)
+            .with_name(payload.participant_name or payload.participant_identity)
+            .with_grants(
+                api.VideoGrants(
+                    room_join=True,
+                    room=payload.room_name,
+                    can_publish=True,
+                    can_subscribe=True,
+                )
+            )
+            .to_jwt()
+        )
+        return{
+            "server_url": "ws://localhost:7880",
+            "participant_token": token,
+        }
+    except Exception as e:
+        return{
+            "status": "error",
+            "text": f"Error creating LiveKit token: {str(e)}"
+        }
+        
+class StartEgressTrack(BaseModel):
+    speaker: str
+    track_id: str
+
+class StartEgressRequest(BaseModel):
+    room_name: str
+    tracks: list[StartEgressTrack]
+    
+@app.post("/livekit/start-egress")
+async def start_livekit_egress(payload: StartEgressRequest):
+    try: 
+        api_key = os.getenv("LIVEKIT_API_KEY")
+        api_secret = os.getenv("LIVEKIT_API_SECRET")
+        
+        if not api_key or not api_secret:
+            raise ValueError("Livekit credential missing")
+        
+        #Connects to Livekit server
+        lkapi = LiveKitAPI(
+            url="http://localhost:7880",
+            api_key=api_key,
+            api_secret=api_secret,
+        )
+        
+        results = []
+        
+        for track in payload.tracks:
+            print(f"Starting egress for {track.speaker}: {track.track_id}")
+            
+            req = api.TrackEgressRequest(
+                room_name = payload.room_name,
+                track_id = track.track_id,
+                websocket_url = f"ws://host.docker.internal:8000/ws/live-audio/{track.speaker}",
+            )
+            
+            res = await lkapi.egress.start_track_egress(req)
+
+            results.append({
+                "speaker": track.speaker,
+                "egress_id": res.egress_id
+            })
+        
+        await lkapi.aclose()    
+        
+        return {"status": "started", "egress": results}
+    
+    except Exception as e:
+        print("Egress error:", repr(e))
+        return {"status": "error", "text": str(e)}
+    
 #TODO
 @app.post("/transcribe-seperated-audio")
-def transcribe_seperated_audio():
-    #NOTE: This is a method stem for handling livekit audio chunks that are already seperated by participants
-    pass
+async def transcribe_seperated_audio(request: Request):
+    try:
+        form = await request.form()
+        print("TRANSCRIBE FORM KEYS:", list(form.keys()))
+
+        audio_file = form.get("audio_file")
+        metadata = form.get("metadata")
+
+        if audio_file is None:
+            return {"status": "error", "text": "Missing audio_file"}
+        if metadata is None:
+            return {"status": "error", "text": "Missing metadata"}
+
+        parsed = json.loads(metadata)
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            tmp.write(await audio_file.read())
+            audio_path = str(Path(tmp.name))
+
+        transcription = _transcribe.get_transcription(audio_path=audio_path)
+
+        print("TRANSCRIPTION TYPE:", type(transcription))
+        print("TRANSCRIPTION VALUE:", transcription)
+
+        if isinstance(transcription, dict):
+            segments = transcription.get("segments", transcription)
+        elif hasattr(transcription, "segments"):
+            segments = transcription.segments
+        else:
+            segments = transcription
+
+        if isinstance(segments, dict):
+            segments = segments.get("segments", [])
+
+        ret = []
+        for segment in segments:
+            if isinstance(segment, dict):
+                seg_start = segment.get("start", 0)
+                seg_end = segment.get("end", 0)
+                seg_text = segment.get("text", "").strip()
+            else:
+                seg_start = getattr(segment, "start", 0)
+                seg_end = getattr(segment, "end", 0)
+                seg_text = getattr(segment, "text", "").strip()
+
+            # Fix 3: clamp timestamps to the chunk length
+            seg_start = max(0, min(seg_start, CHUNK_SECONDS))
+            seg_end = max(seg_start, min(seg_end, CHUNK_SECONDS))
+
+            # optional cleanup for junk outputs
+            if (
+                not seg_text or
+                seg_text in [".", " "] or
+                len(seg_text.strip()) < 3 or
+                len(seg_text.split()) < 2
+            ):
+                continue
+
+            seg_text_lower = seg_text.lower().strip()
+
+            if any(p in seg_text_lower for p in ["thank you", "thanks", "okay"]):
+                continue
+            
+            raw_text = seg_text.strip()
+            ret.append({
+                "speaker": parsed["speaker"],
+                "start": parsed["start"],
+                "end": parsed["start"],
+                "text": raw_text,
+            })
+
+        os.remove(audio_path)
+        return [{"transcription": ret}]
+
+    except Exception as e:
+        print("TRANSCRIBE ERROR:", repr(e))
+        return {"status": "error", "text": f"Error In Transcribe Separated Audio: {str(e)}"}
+
 
 @app.post("/embed-segments")
 def embed_segments(metadata: str) -> List[Dict[str, Any]]:
@@ -191,9 +387,111 @@ def generate_answer(query:str, speaker:str = None, n:int = 20) -> str:
 
 
 
+async def send_live_chunk_to_n8n(
+    speaker: str,
+    audio_bytes: bytes,
+    chunk_index: int,
+    start_time: float,
+    end_time: float,
+    room_name: str = "test-room",
+):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+        wav_path = tmp.name
+        
+        
+    try:
+        with wave.open(wav_path, "wb") as wf:
+            wf.setnchannels(PCM_CHANNELS)
+            wf.setsampwidth(PCM_SAMPLE_WIDTH)
+            wf.setframerate(PCM_SAMPLE_RATE)
+            wf.writeframes(audio_bytes)
 
+        metadata = {
+            "speaker": speaker,
+            "room_name": room_name,
+            "chunk_index": chunk_index,
+            "start": start_time,
+            "end": end_time,
+        }
 
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            with open(wav_path, "rb") as f:
+                files = {
+                    "audio_file": ("chunk.wav", f, "audio/wav"),
+                }
+                data = {
+                    "metadata": json.dumps(metadata),
+                }
 
+                resp = await client.post(
+                    "http://localhost:5678/webhook/2b33e750-870d-4df6-bcb9-c432d8876c1a",
+                    files=files,
+                    data=data,
+                )
+
+        print(f"Sent {speaker} chunk {chunk_index} to n8n: {resp.status_code}")
+        try:
+            print("n8n response:", resp.text[:300])
+        except Exception:
+            pass
+
+    finally:
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
+            
+
+@app.websocket("/ws/live-audio/{speaker}")
+async def live_audio_ws(websocket: WebSocket, speaker: str):
+    await websocket.accept()
+    reset_speaker_state(speaker)
+    print(f"{speaker} connected to audio stream")
+
+    if speaker_chunk_start[speaker] == 0:
+        speaker_chunk_start[speaker] = time.time()
+
+    try:
+        while True:
+            message = await websocket.receive()
+
+            if "bytes" in message and message["bytes"] is not None:
+                data = message["bytes"]
+
+                async with speaker_locks[speaker]:
+                    speaker_buffers[speaker].extend(data)
+
+                    while len(speaker_buffers[speaker]) >= CHUNK_SIZE_BYTES:
+                        chunk = bytes(speaker_buffers[speaker][:CHUNK_SIZE_BYTES])
+                        del speaker_buffers[speaker][:CHUNK_SIZE_BYTES]
+
+                        chunk_index = speaker_chunk_index[speaker]
+                        start_time = speaker_chunk_start[speaker]
+                        end_time = start_time + CHUNK_SECONDS
+
+                        speaker_chunk_index[speaker] += 1
+                        speaker_chunk_start[speaker] = end_time
+                        
+                        print(
+                            f"{speaker} chunk ready: idx={chunk_index}, "
+                            f"bytes={len(chunk)}, start={start_time:.2f}, end={end_time:.2f}"
+                        )
+
+                        asyncio.create_task(
+                            send_live_chunk_to_n8n(
+                                speaker=speaker,
+                                audio_bytes=chunk,
+                                chunk_index=chunk_index,
+                                start_time=start_time,
+                                end_time=end_time,
+                            )
+                        )
+
+            elif "text" in message and message["text"] is not None:
+                print(f"{speaker} event: {message['text']}")
+
+    except Exception as e:
+        print(f"{speaker} disconnected: {e}")
+        reset_speaker_state(speaker)
+        
 
 #OLD/IN PROGRESS
 

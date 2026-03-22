@@ -10,3 +10,5 @@ groq
 sentence-transformers
 supabase
 dotenv
+python-dotenv
+livekit-api

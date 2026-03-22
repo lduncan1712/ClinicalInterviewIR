@@ -60,26 +60,171 @@ class Controller {
         }
     }
 
-    async startLiveAudio() {
-        const existingStatus = document.getElementById('streamStatus')
-        
-        if (!this.patientStream || !this.clinicianStream){
-            alert('Please Assign Both Roles Audio')
-        } else if (document.getElementById('patientAudio').textContent ===
-                   document.getElementById('clinicianAudio').textContent) {
-            alert('Audio Sources Identical: Please Choose Seperate Sources')
-        } else {
+    async fetchLiveKitToken(){
+        const response = await fetch("http://localhost:8000/livekit-token", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body:JSON.stringify({
+                room_name: "test-room",
+                participant_identity: `user-${Date.now()}`,
+                participant_name: "Frontend User",
+            }),
+        });
 
-            //LIVEKIT CONNECTING
-            document.getElementById('streamStatus').textContent = 'Running'
+        const data = await response.json();
+
+        if (!response.ok || data.status === "error"){
+            throw new Error(data.text || "Failed to fetch LiveKit Token");
+        }
+
+        return data;
+    }
+    async startLiveAudio() {
+        console.log("startLiveAudio called");
+        const existingStatus = document.getElementById('streamStatus');
+    
+        try {
+            if (!this.patientStream || !this.clinicianStream) {
+                alert('Please Assign Both Roles Audio');
+                return;
+            }
+    
+            if (
+                document.getElementById("patientAudio").textContent ===
+                document.getElementById("clinicianAudio").textContent
+            ) {
+                alert("Audio sources are identical. Please choose separate sources.");
+                return;
+            }
+    
+            if (this.room) {
+                alert("Live audio is already running.");
+                return;
+            }
+    
+            existingStatus.textContent = "Connecting";
+    
+            const { server_url, participant_token } = await this.fetchLiveKitToken();
+    
+            const room = new LivekitClient.Room();
+    
+            room
+                .on(LivekitClient.RoomEvent.Connected, () => {
+                    console.log("Connected to LiveKit room");
+                })
+                .on(LivekitClient.RoomEvent.Disconnected, () => {
+                    console.log("Disconnected from LiveKit room");
+                })
+                .on(LivekitClient.RoomEvent.ConnectionStateChanged, (state) => {
+                    console.log("Connection state:", state);
+                });
+
+
+            await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            await room.connect(server_url, participant_token);
+    
+            const patientDeviceId =
+                this.patientStream.getAudioTracks()[0].getSettings().deviceId;
+    
+            const clinicianDeviceId =
+                this.clinicianStream.getAudioTracks()[0].getSettings().deviceId;
+    
+            const patientTrack = await LivekitClient.createLocalAudioTrack({
+                deviceId: patientDeviceId,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+            });
+    
+            const clinicianTrack = await LivekitClient.createLocalAudioTrack({
+                deviceId: clinicianDeviceId,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+            });
+    
+            this.patientPublication = await room.localParticipant.publishTrack(patientTrack, {
+                name: "patient",
+                source: LivekitClient.Track.Source.Microphone,
+            });
+    
+            this.clinicianPublication = await room.localParticipant.publishTrack(clinicianTrack, {
+                name: "clinician",
+                source: LivekitClient.Track.Source.Microphone,
+            });
+    
+            await room.localParticipant.setMicrophoneEnabled(true);
+    
+            patientTrack.mediaStreamTrack.onunmute = () => {
+                console.log("PATIENT MIC ACTIVE");
+            };
+    
+            clinicianTrack.mediaStreamTrack.onunmute = () => {
+                console.log("CLINICIAN MIC ACTIVE");
+            };
+    
+            console.log("Tracks published correctly");
+    
+            console.log("Patient track SID:", this.patientPublication.trackSid);
+            console.log("Clinician track SID:", this.clinicianPublication.trackSid);
+    
+            const egressResponse = await fetch("http://localhost:8000/livekit/start-egress", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    room_name: "test-room",
+                    tracks: [
+                        { speaker: "patient", track_id: this.patientPublication.trackSid },
+                        { speaker: "clinician", track_id: this.clinicianPublication.trackSid }
+                    ]
+                })
+            });
+    
+            const egressData = await egressResponse.json();
+            console.log("Egress response:", egressData);
+    
+            this.room = room;
+            existingStatus.textContent = "Running";
+    
+        } catch (error) {
+            console.error("LiveKit connection error:", error);
+            existingStatus.textContent = "Not Running";
+            alert(`Failed to connect to LiveKit: ${error.message}`);
         }
     }
 
     async stopLiveAudio(){
+        const existingStatus = document.getElementById("streamStatus");
 
-        //LIVEKIT STOPPING
-        document.getElementById('streamStatus').textContent = 'Not Running';
+        try{
+            if(this.room){
+                const patientTrack = this.patientStream?.getAudioTracks?.()[0];
+                const clinicianTrack = this.clinicianStream?.getAudioTracks?.()[0];
+
+                if (patientTrack){
+                    this.room.localParticipant.unpublishTrack(patientTrack);
+                }
+
+                if (clinicianTrack){
+                    this.room.localParticipant.unpublishTrack(clinicianTrack);
+                }
+
+                await this.room.disconnect();
+                this.room = null;
+                this.patientPublication = null;
+                this.clinicianPublication = null;
+            }
+
+            existingStatus.textContent = 'Not Running';
+        } catch (error){
+            console.error("Error disconnecting:", error);
+            alert(`Failed to stop LiveKit audio: ${error.message}`);
+        }
     }
+
 
     async uploadAudioFile() {
         const file = this.fileInput.files[0];

@@ -285,12 +285,12 @@
                 <div class="device-row">
                     <label>Patient Microphone</label>
                     <span class="device-name" id="patientAudio">N/A</span>
-                    <button type="button" class="assign-btn" onclick="controller.assignAudioDevice('patient')">Select</button>
+                    <button type="button" class="assign-btn" onclick="controller.assignAudioDevice('patient',event)">Select</button>
                 </div>
                 <div class="device-row">
                     <label>Clinician Microphone</label>
                     <span class="device-name" id="clinicianAudio">N/A</span>
-                    <button type="button" class="assign-btn" onclick="controller.assignAudioDevice('clinician')">Select</button>
+                    <button type="button" class="assign-btn" onclick="controller.assignAudioDevice('clinician', event)">Select</button>
                 </div>
                 <div class="audio-status">
                     Live Streaming Status: <span id="streamStatus">Not Running</span>
@@ -370,6 +370,7 @@
 
         </main>
     </div>
+<script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
