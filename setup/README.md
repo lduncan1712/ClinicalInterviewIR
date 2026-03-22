@@ -74,7 +74,10 @@ uvicorn python_venv.endpoints:app --host 0.0.0.0 --port 8000 --reload
 
 ### Step 8: Front 
 #### Activation: The frontend can be simply activated with the command line
+#### LiveKit cannot run from opening the index.html file. 
+#### We are required to run a local server for the frontend.
 ```{bash}
 cd src/frontend
-start index.html
+python -m http.server 3000
+http://localhost:3000
 ```
