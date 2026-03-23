@@ -21,10 +21,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        208,
-        0
+        704,
+        176
       ],
-      "id": "7366b0ad-89fd-4a9b-98e1-9f57ca6b24a5",
+      "id": "3ae5e958-4620-4110-9514-47a5d6586d50",
       "name": "Diarize + Transcribe"
     },
     {
@@ -32,10 +32,10 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        464,
-        128
+        960,
+        304
       ],
-      "id": "fb9a7f84-aaa1-43d9-8e7c-1bfef6591bea",
+      "id": "78d39b45-154b-462c-9ce1-805cac4ffd3b",
       "name": "Merge"
     },
     {
@@ -51,25 +51,26 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -224,
-        0
+        272,
+        176
       ],
-      "id": "1cebbd27-17c8-42a1-b6de-83bf43cf572d",
+      "id": "3b7c451c-e9f8-4607-8660-4a220836bc30",
       "name": "Audio Upload Webhook",
       "webhookId": "fad15dbb-5a4f-46f8-9d17-fe4cbcfa2a62"
     },
     {
       "parameters": {
+        "httpMethod": "POST",
         "path": "2b33e750-870d-4df6-bcb9-c432d8876c1a",
         "options": {}
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -240,
-        192
+        256,
+        368
       ],
-      "id": "784bc8eb-4033-4bd0-98d7-89e995c33fc2",
+      "id": "fabe0782-fccb-484f-8bbd-0d58e2c3e4d0",
       "name": "Live Audio Chunk Webhook",
       "webhookId": "2b33e750-870d-4df6-bcb9-c432d8876c1a"
     },
@@ -81,31 +82,17 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        912,
-        128
+        1408,
+        304
       ],
-      "id": "85b08f66-c35a-4c98-9d80-ca15d898891e",
+      "id": "690a4163-227b-4ce0-a4e2-8ea84eb6dd52",
       "name": "Upload Into Supabase",
       "credentials": {
         "supabaseApi": {
-          "id": "UlkFIs0aWNzUjBRG",
+          "id": "UR0RwWltl5Eg7V8r",
           "name": "Supabase account"
         }
       }
-    },
-    {
-      "parameters": {
-        "content": "TODO: LiveKit Stuff Here, Outputting Seperated Audio Tracks And Metadata. ",
-        "width": 160
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        -32,
-        176
-      ],
-      "id": "12a44c1f-3f16-4d8e-933c-e0aa12a27794",
-      "name": "Sticky Note"
     },
     {
       "parameters": {
@@ -125,24 +112,40 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        672,
-        128
+        1168,
+        304
       ],
-      "id": "d4da2428-b517-46a2-b7c6-5b43fc8a13df",
+      "id": "e33a945f-4217-4076-9df8-f5c796be8f0c",
       "name": "Index + Embed"
     },
     {
       "parameters": {
+        "method": "POST",
         "url": "http://host.docker.internal:8000/transcribe-seperated-audio",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "audio_file",
+              "inputDataFieldName": "audio_file"
+            },
+            {
+              "name": "metadata",
+              "value": "={{$json.body.metadata}}"
+            }
+          ]
+        },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        208,
-        192
+        704,
+        368
       ],
-      "id": "6e93dd5c-d059-4c1b-8c10-18463abce576",
+      "id": "fb3e4361-3055-4687-8274-2db8902084cd",
       "name": "Transcribe + Merge"
     }
   ],
@@ -181,11 +184,6 @@
         ]
       ]
     },
-    "Upload Into Supabase": {
-      "main": [
-        []
-      ]
-    },
     "Index + Embed": {
       "main": [
         [
@@ -207,19 +205,29 @@
           }
         ]
       ]
+    },
+    "Live Audio Chunk Webhook": {
+      "main": [
+        [
+          {
+            "node": "Transcribe + Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
   "settings": {
     "executionOrder": "v1",
-    "binaryMode": "separate",
-    "availableInMCP": false
+    "binaryMode": "separate"
   },
-  "versionId": "7f8410fc-079f-43b5-942c-8c7e4622f651",
+  "versionId": "d6489682-d3c5-4101-9c3c-8eb5eacec8f3",
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "d1d67826bb49cfa9f5ff49f52c97a72ff05970f49c4dc25299f7cb6038d140fa"
+    "instanceId": "970d8215c15dfdce80f00ac55181b3d465c7898c69fe04a74469e76cced312c5"
   },
-  "id": "exD2GNbUiOEmn7Go",
+  "id": "51Dh4JRbx2Gc6AGO",
   "tags": []
 }
