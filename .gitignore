@@ -8,3 +8,6 @@
 /.env.*
 src/docker/.env
 .env
+.DS_Store
+/src/.DS_Store
+/src/python_venv/pipeline/__pycache__
