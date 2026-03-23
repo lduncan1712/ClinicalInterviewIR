@@ -6,6 +6,7 @@ class Controller {
         this.clinicianStream = null;
         this.retrievalMode = document.getElementById('retrievalMode');
         this.speakerFilter = document.getElementById('speakerFilter');
+        this.conversationInput = document.getElementById('conversationInput');
         this.retrievalQuery = document.getElementById('retrievalQuery');
         this.queryRow = document.getElementById('queryRow');
         this.retrievalOutput = document.getElementById('retrievalOutput');
@@ -286,6 +287,7 @@ class Controller {
         const mode = this.retrievalMode.value;
         const speaker = this.speakerFilter.value;
         const query = this.retrievalQuery.value.trim();
+        const conversation = this.conversationInput.value.trim();
 
         let selectedModeLabel = '';
         if (mode === 'summary') selectedModeLabel = 'Clinical Interview Summarization';
@@ -299,20 +301,34 @@ class Controller {
             this.retrievalOutput.innerHTML = `
                 <strong>Selected Mode:</strong> ${selectedModeLabel}<br>
                 <strong>Speaker Filter:</strong> ${speaker}<br>
+                <strong>Conversation:</strong> ${conversation ? conversation : 'All conversations'}<br>
                 <strong>Error:</strong> Please enter a question for Question Answering mode.
             `;
             return;
         }
 
-        //send prompt to backend for qa
+        //build query string 
+        const params = new URLSearchParams();
         if (mode === 'qa') {
-            endpoint += `?query=${encodeURIComponent(query)}`;
+            params.append('query', query);
+        }
+        if (speaker && speaker !== 'all') {
+            params.append('speaker', speaker);
+        }
+        if (conversation) {
+            params.append('conversation', conversation);
+        }
+
+        const queryString = params.toString();
+        if (queryString) {
+            endpoint += `?${queryString}`;
         }
 
         //format output
         this.retrievalOutput.innerHTML = `
             <strong>Selected Mode:</strong> ${selectedModeLabel}<br>
             <strong>Speaker Filter:</strong> ${speaker}<br>
+            <strong>Conversation:</strong> ${conversation ? conversation : 'All conversations'}<br>
             <strong>Question / Prompt:</strong> ${query ? query : 'None entered'}<br><br>
             <em>Running retrieval...</em>
         `;
@@ -344,6 +360,7 @@ class Controller {
             this.retrievalOutput.innerHTML = `
                 <strong>Selected Mode:</strong> ${selectedModeLabel}<br>
                 <strong>Speaker Filter:</strong> ${speaker}<br>
+                <strong>Conversation:</strong> ${conversation ? conversation : 'All conversations'}<br>
                 <strong>Question / Prompt:</strong> ${query ? query : 'None entered'}<br><br>
                 <strong>Backend Output:</strong><br>
                 <div style="margin-top:8px; white-space:pre-wrap;">${formattedResult.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>
@@ -352,6 +369,7 @@ class Controller {
             this.retrievalOutput.innerHTML = `
                 <strong>Selected Mode:</strong> ${selectedModeLabel}<br>
                 <strong>Speaker Filter:</strong> ${speaker}<br>
+                <strong>Conversation:</strong> ${conversation ? conversation : 'All conversations'}<br>
                 <strong>Question / Prompt:</strong> ${query ? query : 'None entered'}<br><br>
                 <strong>Error:</strong> ${error.message}
             `;
@@ -362,6 +380,7 @@ class Controller {
     clearRetrievalOutput() {
         this.retrievalOutput.innerHTML = 'Retrieval output will appear here.';
         this.retrievalQuery.value = '';
+        this.conversationInput.value = '';
     }
 
 
