@@ -108,6 +108,7 @@ def transcribe_original_audio(audio_file: UploadFile = File(...)) -> List[Dict[s
             transcription = _transcribe.get_transcription(audio_path=segment_path)
 
             segments.append({
+                "conversation": audio_file.filename,
                 "speaker": speaker,
                 "start": round(segment.start, 1),
                 "end": round(segment.end, 1),
@@ -324,7 +325,7 @@ def embed_segments(metadata: str) -> List[Dict[str, Any]]:
     except Exception as e:
         return [{"status": "error", "text": f"Error In Index Audio: {str(e)}"}]
 
-def get_grounded_response(system_prompt_name: str, query:str = None, speaker:str = None, n:int = 50) -> str:
+def get_grounded_response(system_prompt_name: str, query:str = None, speaker:str = None, conversation:str = None, n:int = 50) -> str:
     """
     A support method for retrieval endpoints that generates a response to a prompt using grounded segments
 
@@ -341,7 +342,7 @@ def get_grounded_response(system_prompt_name: str, query:str = None, speaker:str
     """
     query_vector = _embed.get_embeddings(["Medical"])[0]
 
-    segments = _retrieve.get_retrieval(query_vector=query_vector, speaker=speaker, n=n)
+    segments = _retrieve.get_retrieval(query_vector=query_vector, speaker=speaker, conversation=conversation, n=n)
 
     segments_str = json.dumps(segments)
 
@@ -350,40 +351,45 @@ def get_grounded_response(system_prompt_name: str, query:str = None, speaker:str
     return _generate.get_generation(query=f"{query}: {segments_str}", system_prompt=system_prompt)
 
 @app.post("/generate-summary")
-def generate_summary(speaker:str = None, n:int = 20) -> str:
+def generate_summary(speaker:str = None, conversation:str = None, n:int = 20) -> str:
     """
     An endpoint which returns a grounded summary
 
     Please see the wrapped method for details
     """
     try:
-        return get_grounded_response(system_prompt_name="SUMMARIZATION.txt", query=None, speaker=speaker, n=n)
+        return get_grounded_response(system_prompt_name="SUMMARIZATION.txt", query=None, speaker=speaker, conversation=conversation, n=n)
     except Exception as e:
             return [{"status": "error", "text": f"Error In Generate Summary: {str(e)}"}]
 
 @app.post("/generate-analysis")
-def generate_analysis(speaker:str = None, n:int = 20) -> str:
+def generate_analysis(speaker:str = None, conversation:str = None, n:int = 20) -> str:
     """
     An endpoint which returns a grounded analysis
 
     Please see the wrapped method for details
     """
     try:
-        return get_grounded_response(system_prompt_name="ANALYZER.txt", query=None, speaker=speaker, n=n)
+        return get_grounded_response(system_prompt_name="ANALYZER.txt", query=None, speaker=speaker, conversation=conversation, n=n)
     except Exception as e:
             return [{"status": "error", "text": f"Error In Generate Analysis: {str(e)}"}]
 
 @app.post("/generate-answer")
-def generate_answer(query:str, speaker:str = None, n:int = 20) -> str:
+def generate_answer(query:str, speaker:str = None, conversation:str = None, n:int = 20) -> str:
     """
     An endpoint which returns a grounded answer to a user posed question
 
     Please see the wrapped method for details
     """
     try:
-        return get_grounded_response(system_prompt_name="QUESTIONS.txt", query=query, speaker=speaker, n=n)
+        return get_grounded_response(system_prompt_name="QUESTIONS.txt", query=query, speaker=speaker, conversation=conversation, n=n)
     except Exception as e:
             return [{"status": "error", "text": f"Error In Generate Answer: {str(e)}"}]
+
+
+
+
+
 
 
 
@@ -491,29 +497,3 @@ async def live_audio_ws(websocket: WebSocket, speaker: str):
     except Exception as e:
         print(f"{speaker} disconnected: {e}")
         reset_speaker_state(speaker)
-        
-
-#OLD/IN PROGRESS
-
-#NOTE: Not Tested, As LiveKit Not Setup And This Is Based On Expected LiveKit Outputs, Subject To Change
-#@app.post("/transcribe-seperated-audio")
-"""
-def transcribe_separated_audio(audio_files: List[UploadFile] = File(...), metadata: str = Form(...)) -> dict:
-    try:
-        audio_paths = []
-        metadata = json.loads(metadata)
-
-        for audio_file in audio_files:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-                tmp.write(audio_file.file.read())
-                audio_paths.append(str(Path(tmp.name)))
-
-        ret = _transcribe.transcribe_seperated_audio(audio_paths=audio_paths, metadata=metadata)
-
-        #TODO: Clear Temp Files
-        
-        return [{"transciption:": ret}]
-    
-    except Exception as e:
-        raise RuntimeError(f"Error In Transcribe Separated Audio: {str(e)}")
-"""
