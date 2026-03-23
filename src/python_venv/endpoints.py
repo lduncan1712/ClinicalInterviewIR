@@ -21,6 +21,8 @@ from pydantic import BaseModel
 
 from python_venv.pipeline import _diarize, _embed, _generate, _retrieve, _transcribe
 
+CONVERSATION_ID = "clinical_session"
+
 PCM_SAMPLE_RATE = 48000
 PCM_SAMPLE_WIDTH = 2
 PCM_CHANNELS = 1
@@ -284,6 +286,7 @@ async def transcribe_seperated_audio(request: Request):
             
             raw_text = seg_text.strip()
             ret.append({
+                "conversation": CONVERSATION_ID,
                 "speaker": parsed["speaker"],
                 "start": parsed["start"],
                 "end": parsed["start"],
