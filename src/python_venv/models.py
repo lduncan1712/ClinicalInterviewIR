@@ -1,20 +1,20 @@
-#Ensuring Environment Variable Is Loaded
+#Models In Use
+HUGGINGFACE_MODEL = "pyannote/speaker-diarization-community-1"
+SENTENCE_TRANSFORMER_MODEL = 'medicalai/ClinicalBERT'      #Alternate: 'all-MiniLM-L6-v2'
+
+
+# Loading Environment Variables
 from dotenv import load_dotenv
 load_dotenv()
 
 #Pyannote Diarization
 import os
 from pyannote.audio import Pipeline
-huggingface_pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-community-1", token=os.getenv("HUGGINGFACE_TOKEN"))
+huggingface_pipeline = Pipeline.from_pretrained(HUGGINGFACE_MODEL, token=os.getenv("HUGGINGFACE_TOKEN"))
 
-#BERT Based Embedding Model
+#Sentence Embedding
 from sentence_transformers import SentenceTransformer
-"""
-Possible Models To Use:
-- 'all-MiniLM-L6-v2'
-- 'medicalai/ClinicalBERT'
-"""
-embedding_model = SentenceTransformer('medicalai/ClinicalBERT')
+embedding_model = SentenceTransformer(SENTENCE_TRANSFORMER_MODEL)
 
 #Groq Model For Transcription + Generation
 from groq import Groq
